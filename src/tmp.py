@@ -1,0 +1,2 @@
+from sam2_utils import process_flight_segmentation_masks
+process_flight_segmentation_masks('./data/gmn_extracted_flight_images/US001N/20230805')

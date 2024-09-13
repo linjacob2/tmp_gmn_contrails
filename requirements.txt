@@ -1,0 +1,7 @@
+tqdm
+pycontrails[zarr]==0.51.2
+pycontrails[goes]==0.51.2
+ipykernel
+netCDF4==1.7.1
+pyarrow==16.1.0
+imageio[ffmpeg]
