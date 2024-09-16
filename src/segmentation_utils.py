@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import shutil
 
+import warnings
 from glob import glob
 import json
 import torchvision.transforms as transforms
@@ -206,8 +207,11 @@ def extract_mask_features(mask, bbox=None, device='cuda'):
         max_area_label = labels.flatten()[max_area_idx]
         mask = (labels == max_area_label).cpu().numpy().squeeze()
     except:
-        print('Skipping SAM2 post-processing, and also single connected component filtering for the contrail feature extraction from the SAM2 mask. This is likely due to SAM2 CUDA failing to build.')
+        warnings.warn('Skipping SAM2 post-processing, and also single connected component filtering for the contrail feature extraction from the SAM2 mask. This is likely due to SAM2 CUDA failing to build.',
+                      category=UserWarning,
+                      stacklevel=2,)
 
+    print('got here')
     # Convert bbox of form ([min_x, min_y, max_x, max_y]) to binary mask
     if bbox is not None:
         bbox_mask = np.zeros_like(mask)
