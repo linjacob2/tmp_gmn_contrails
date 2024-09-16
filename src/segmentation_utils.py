@@ -234,17 +234,21 @@ def extract_mask_features(mask, bbox=None, device='cuda'):
     # Get length / width of the mask. TODO: this could be more accurate in case the contrail is not aligned with the bbox.
     # Currently it should be aligned to some extent since the mask is already rotated to match the flight waypoints.
     y_coords, x_coords = np.where(mask)
-    min_x, max_x = np.min(x_coords), np.max(x_coords)
-    min_y, max_y = np.min(y_coords), np.max(y_coords)
-    length = max_x - min_x
-    width = max_y - min_y
-    
-    # It is not guaranteed that the flight waypoints are horizontal instead of vertical. So assign "length" to the longer side.
-    if length < width:
-        length, width = width, length
+    if len(x_coords) == 0:
+        features['length'] = 0
+        features['width'] = 0
+    else:
+        min_x, max_x = np.min(x_coords), np.max(x_coords)
+        min_y, max_y = np.min(y_coords), np.max(y_coords)
+        length = max_x - min_x
+        width = max_y - min_y
+        
+        # It is not guaranteed that the flight waypoints are horizontal instead of vertical. So assign "length" to the longer side.
+        if length < width:
+            length, width = width, length
 
-    features['length'] = int(length)
-    features['width'] = int(width)
+        features['length'] = int(length)
+        features['width'] = int(width)
 
     return features
 
