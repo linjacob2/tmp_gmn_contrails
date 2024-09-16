@@ -10,7 +10,7 @@ First we create our environment and install some general dependencies (e.g. pyco
 ```
 conda create --name contrails python=3.10
 conda activate contrails
-pip install -r requirements
+pip install -r requirements.txt
 ```
 
 Then we need to setup the requirements necessary for the Global Meteor Network Code (see the original instructions [here](https://github.com/CroatianMeteorNetwork/RMS)). Note that the code in the included `/src/RMS` directory contains code from the original RMS repository, with some adaptations from Luc Busquin, and also changes from myself.
