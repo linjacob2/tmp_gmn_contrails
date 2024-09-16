@@ -171,6 +171,7 @@ def segment_contrails(flight_dir, sam2_checkpoint="./sam2_checkpoints/sam2_hiera
     # Propagate the predictions across the video
     # run propagation throughout the video and collect the results in a dict
     output_dir = os.path.join(flight_dir, 'sam2_output')
+    os.makedirs(output_dir, exist_ok=True)
     masks = []
 
     for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(inference_state):
@@ -188,7 +189,6 @@ def segment_contrails(flight_dir, sam2_checkpoint="./sam2_checkpoints/sam2_hiera
     combined_features = {**first_frame_mask_features, **temporal_mask_features}
 
     # Save mask features as a json file
-    os.makedirs(output_dir, exist_ok=True)
     with open(os.path.join(output_dir, 'metadata.json'), 'w') as f:
         json.dump({'mask_features': combined_features}, f)
 
@@ -211,7 +211,6 @@ def extract_mask_features(mask, bbox=None, device='cuda'):
                       category=UserWarning,
                       stacklevel=2,)
 
-    print('got here')
     # Convert bbox of form ([min_x, min_y, max_x, max_y]) to binary mask
     if bbox is not None:
         bbox_mask = np.zeros_like(mask)
