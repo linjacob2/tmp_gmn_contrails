@@ -200,10 +200,13 @@ def extract_mask_features(mask, bbox=None, device='cuda'):
     # Only extract features from the largest connected component in the mask
     # This is important, as speckles can often result in false positives when extracting features
     # such as length/width ratio of a contrail
-    labels, areas = get_connected_components(torch.from_numpy(mask).unsqueeze(0).unsqueeze(0).to(device))
-    max_area_idx = torch.argmax(areas)
-    max_area_label = labels.flatten()[max_area_idx]
-    mask = (labels == max_area_label).cpu().numpy().squeeze()
+    try:
+        labels, areas = get_connected_components(torch.from_numpy(mask).unsqueeze(0).unsqueeze(0).to(device))
+        max_area_idx = torch.argmax(areas)
+        max_area_label = labels.flatten()[max_area_idx]
+        mask = (labels == max_area_label).cpu().numpy().squeeze()
+    else:
+        print('Skipping SAM2 post-processing, and also single connected component filtering for the contrail feature extraction from the SAM2 mask. This is likely due to SAM2 CUDA failing to build.')
 
     # Convert bbox of form ([min_x, min_y, max_x, max_y]) to binary mask
     if bbox is not None:
