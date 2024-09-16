@@ -299,7 +299,7 @@ def masks_to_geo(base_dir, contrail_flights):
         contrail_height = first_mask_frame['heights_for_advection'][0]
         time = first_mask_frame['time']
 
-        # Get platepar closest in time
+        # TODO: Get platepar closest in time
         platepar_times = [(platepar_name, filenameToDatetime(platepar_name).timestamp()) for platepar_name in platepar_files.keys()]
         platepar_times.sort(key=lambda x: x[1])
         platepar_name = min(platepar_times, key=lambda x: abs(x[1] - time))[0]

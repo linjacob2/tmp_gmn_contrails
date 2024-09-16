@@ -98,6 +98,14 @@ class FlightData:
             
             # The sum will be in per-second
             # print(number_of_in_frame_waypoints_per_flight_id)
+
+            # Remove flights that last less than 5 frames
+            valid_flight_ids = number_of_in_frame_waypoints_per_flight_id[(number_of_in_frame_waypoints_per_flight_id >= 5)].index
+            wypts_data = wypts_data[wypts_data['flight_id'].isin(valid_flight_ids)]
+            if simulate_contrails:
+                contrails = contrails[contrails['flight_id'].isin(valid_flight_ids)]
+                
+            # Remove flights that last more than 50 frames
             valid_flight_ids = number_of_in_frame_waypoints_per_flight_id[(number_of_in_frame_waypoints_per_flight_id <= max_waypoints * 10)].index
             wypts_data = wypts_data[wypts_data['flight_id'].isin(valid_flight_ids)]
             if simulate_contrails:
