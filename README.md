@@ -42,6 +42,14 @@ git clone https://github.com/facebookresearch/segment-anything-2.git
 cd segment-anything-2 & pip install -e .
 ```
 
+Note: If you get the error `ImportError: cannot import name '_C' from 'sam2'`, then this provided solution worked for me.
+
+```
+In some systems, you may need to run `python setup.py build_ext --inplace` in the SAM 2 repo root as suggested in https://github.com/facebookresearch/segment-anything-2/issues/77.
+```
+
+</details>
+
 SAM2 also requires a model checkpoint to be downloaded from [here](https://dl.fbaipublicfiles.com/segment_anything_2/072824/sam2_hiera_large.pt). This `sam2_hiera_large.pt` file should be downloaded to `/src/sam2_checkpoints`.
 
 ## Data Download

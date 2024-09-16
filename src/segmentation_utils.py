@@ -9,6 +9,7 @@ from glob import glob
 import json
 import torchvision.transforms as transforms
 from sam2.build_sam import build_sam2_video_predictor
+from sam2.utils.misc import get_connected_components
 from utils.data_loading_utils import load_platepars
 
 from RMS.Formats.FFfile import filenameToDatetime
@@ -84,7 +85,7 @@ def _preprocess_images(metadata, output_folder):
     return query, diff_angle, min_offset, max_offset, orig_w, orig_h, expanded_w, expanded_h
 
 def segment_contrails(flight_dir, sam2_checkpoint="./sam2_checkpoints/sam2_hiera_large.pt", model_cfg="sam2_hiera_l.yaml",
-                      num_query_frames=1, box_margin=10, debug=False):
+                      num_query_frames=1, box_margin=10, binary_threshold=0.0, debug=False):
     # flight_dir: directory name with flight_id as the name e.g. "3C6514_DLH413"
 
     # use bfloat16
@@ -140,6 +141,8 @@ def segment_contrails(flight_dir, sam2_checkpoint="./sam2_checkpoints/sam2_hiera
         # labels=labels,
     )
 
+    first_frame_mask_features = extract_mask_features((out_mask_logits[0, 0, :, :] > binary_threshold).cpu().numpy(), bbox=[int(min_x), int(min_y), int(max_x), int(max_y)])
+
     # Visualise outputs if debug=True
     if debug:
         debug_folder = os.path.join(flight_dir, 'debug')
@@ -158,27 +161,99 @@ def segment_contrails(flight_dir, sam2_checkpoint="./sam2_checkpoints/sam2_hiera
         plt.imshow(Image.open(os.path.join(tmp_sam2_folder, frame_names[0])))
         show_points(query, labels, plt.gca())
         show_box(box, plt.gca())
-        show_mask((out_mask_logits[0] > 0.0).cpu().numpy(), plt.gca(), obj_id=out_obj_ids[0])
+        show_mask((out_mask_logits[0] > binary_threshold).cpu().numpy(), plt.gca(), obj_id=out_obj_ids[0])
 
         plt.savefig(os.path.join(debug_folder, f'{str(0).zfill(5)}.png'))
 
         plt.close('all')
 
     # Propagate the predictions across the video
-    output_dir = os.path.join(flight_dir, 'sam2_output')
-    os.makedirs(output_dir, exist_ok=True)
-
     # run propagation throughout the video and collect the results in a dict
+    output_dir = os.path.join(flight_dir, 'sam2_output')
+    masks = []
+
     for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(inference_state):
         out_mask_logits = transforms.functional.affine(out_mask_logits, angle=diff_angle, translate=(min_offset[0], min_offset[1]), scale=1.0, shear=0.0)
         out_mask_logits = out_mask_logits[:, :, :orig_h, :orig_w]
 
         # Save as binary image for efficient storage
-        out_mask_logits = (out_mask_logits > 0.0).squeeze().cpu().numpy()
+        out_mask_logits = (out_mask_logits > binary_threshold).squeeze().cpu().numpy()
+        masks.append(out_mask_logits)
         mask = Image.fromarray(out_mask_logits)
         mask.save(os.path.join(output_dir, f'{str(out_frame_idx).zfill(5)}.png'), bits=1, optimize=True)
 
-def lift_mask_to_geo(platepar, mask, height):
+    # Get temporal mask features
+    temporal_mask_features = extract_temporal_mask_features(masks)
+    combined_features = {**first_frame_mask_features, **temporal_mask_features}
+
+    # Save mask features as a json file
+    os.makedirs(output_dir, exist_ok=True)
+    with open(os.path.join(output_dir, 'metadata.json'), 'w') as f:
+        json.dump({'mask_features': combined_features}, f)
+
+    # Remove temporary folder
+    shutil.rmtree(tmp_sam2_folder)
+
+def extract_mask_features(mask, bbox=None, device='cuda'):
+    features = dict()
+    
+    # Only extract features from the largest connected component in the mask
+    # This is important, as speckles can often result in false positives when extracting features
+    # such as length/width ratio of a contrail
+    labels, areas = get_connected_components(torch.from_numpy(mask).unsqueeze(0).unsqueeze(0).to(device))
+    max_area_idx = torch.argmax(areas)
+    max_area_label = labels.flatten()[max_area_idx]
+    mask = (labels == max_area_label).cpu().numpy().squeeze()
+
+    # Convert bbox of form ([min_x, min_y, max_x, max_y]) to binary mask
+    if bbox is not None:
+        bbox_mask = np.zeros_like(mask)
+        bbox_mask[bbox[1]:bbox[3], bbox[0]:bbox[2]] = 1
+
+        # Calculate intersection over union of mask and bbox_mask
+        intersection = np.logical_and(mask, bbox_mask)
+        union = np.logical_or(mask, bbox_mask)
+        iou = np.sum(intersection) / np.sum(union)
+        features['iou'] = iou
+
+        # Check how much percentage of the mask is inside the bbox mask
+        if np.sum(mask) != 0:
+            features['mask_in_bbox'] = np.sum(intersection) / np.sum(mask)
+        else:
+            features['mask_in_bbox'] = 0
+
+    # In case detection without flight data is desired, simpler metrics could be used, e.g. total area of the mask
+    features['total_area'] = int(np.sum(mask))
+
+    # Get length / width of the mask. TODO: this could be more accurate in case the contrail is not aligned with the bbox.
+    # Currently it should be aligned to some extent since the mask is already rotated to match the flight waypoints.
+    y_coords, x_coords = np.where(mask)
+    min_x, max_x = np.min(x_coords), np.max(x_coords)
+    min_y, max_y = np.min(y_coords), np.max(y_coords)
+    length = max_x - min_x
+    width = max_y - min_y
+    
+    # It is not guaranteed that the flight waypoints are horizontal instead of vertical. So assign "length" to the longer side.
+    if length < width:
+        length, width = width, length
+
+    features['length'] = int(length)
+    features['width'] = int(width)
+
+    return features
+
+def extract_temporal_mask_features(masks, device='cuda'):
+    features = dict()
+    masks = torch.from_numpy(np.array(masks)).float().to(device)
+
+    # Get change in mask for each time step
+    diff_masks = masks[1:, :, :] - masks[:-1, :, :]
+    per_frame_temporal_variability = torch.mean(torch.abs(diff_masks), dim=(1, 2))
+    features['temporal_variability'] = torch.mean(per_frame_temporal_variability ** 2).item()
+
+    return features
+
+def _lift_single_mask_to_geo(platepar, mask, height):
     # Get x, y coordinates of all ones in the mask
     y_coords, x_coords = np.where(mask)
 
@@ -189,10 +264,12 @@ def lift_mask_to_geo(platepar, mask, height):
         lat, lon = XyHt2Geo(platepar, x_coords[i], y_coords[i], height)
         lats.append(lat)
         lons.append(lon)
-
+    
     return np.array(lats), np.array(lons)
 
-def process_flight_segmentation_masks(base_dir):
+def masks_to_geo(base_dir, contrail_flights):
+    # contrail_flights is a list of flight_ids where contrails have been detected
+
     # Load platepar files
     platepar_files, center_coordinate = load_platepars(base_dir)
 
@@ -200,6 +277,14 @@ def process_flight_segmentation_masks(base_dir):
     flight_dirs = [f.path for f in os.scandir(base_dir) if f.is_dir()]
 
     for flight_dir in flight_dirs:
+        flight_id = os.path.basename(flight_dir)
+
+        if flight_id not in contrail_flights:
+            continue
+
+        output_dir = os.path.join(flight_dir, 'mask_geo')
+        os.makedirs(output_dir, exist_ok=True)
+
         meta_data_file = glob(os.path.join(flight_dir, 'metadata/*.json'))
 
         if len(meta_data_file) == 0:
@@ -224,9 +309,27 @@ def process_flight_segmentation_masks(base_dir):
         mask_dir = os.path.join(flight_dir, 'sam2_output')
         mask_files = glob(os.path.join(mask_dir, '*.png'))
 
+        output_dict = {}
+        output_dict['masks'] = {}
+
+        # Project image corners to geo by making a fake mask
+        fake_mask = np.zeros_like(np.array(Image.open(mask_files[0])))
+        fake_mask[0, 0] = 1
+        fake_mask[0, -1] = 1
+        fake_mask[-1, 0] = 1
+        fake_mask[-1, -1] = 1
+        lats, lons = _lift_single_mask_to_geo(platepar, fake_mask, contrail_height)
+        output_dict['image_corners'] = {'lats': lats.tolist(), 'lons': lons.tolist()}
+
         for mask_file in mask_files:
             mask = Image.open(mask_file)
             mask = np.array(mask)
 
             # Get world coordinates
-            lats, lons = lift_mask_to_geo(platepar, mask, contrail_height)
+            lats, lons = _lift_single_mask_to_geo(platepar, mask, contrail_height)
+            output_dict['masks'][mask_file] = {'lats': lats.tolist(), 'lons': lons.tolist()}
+
+        # Save to json
+        with open(os.path.join(output_dir, 'mask_geo.json'), 'w') as f:
+            json.dump(output_dict, f)
+
