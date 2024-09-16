@@ -28,9 +28,12 @@ pip install git+https://github.com/matejak/imreg_dft@master#egg=imreg_dft
 ```
 
 The RMS code also requires some Cython code to be built. This can be done through the following:
+
 ```
 cd src/RMS
 python setup.py install
+
+Note: If this fails due to the numpy version being too new. Then run the following "pip install numpy==1.26.4".
 ```
 
 The contrail detection pipeline uses Segment Anything 2 (SAM2) which also needs to be installed. The original instructions for this can be found [here](https://github.com/facebookresearch/segment-anything-2).
@@ -78,3 +81,5 @@ for date in dates:
 
 * The ERA5 data loading with pycontrails has had issues for me before. The solution for this can be found [here](https://github.com/contrailcirrus/pycontrails/issues/206).
 * The segmentation script can have a memory leak issue, causing issues when running the script over large-scale datasets. This has not been resolved yet.
+* Running the RMS installation script can fail. I have experienced that sometimes the numpy version is too new and is no longer compatible. Running `pip install numpy==1.26.4` resolved this for me.
+* On the Imperial HPC, most of the installation works. However, installing the CUDA extension for SAM-2 such that the post-processing and all the features from the masks are extracted can be tricky. This might be helpful: https://icl-rcs-user-guide.readthedocs.io/en/latest/hpc/applications/guides/pytorch/
