@@ -107,7 +107,7 @@ def segment_contrails(flight_dir, sam2_checkpoint="./sam2_checkpoints/sam2_hiera
 
     predictor = build_sam2_video_predictor(model_cfg, sam2_checkpoint)
     inference_state = predictor.init_state(video_path=tmp_sam2_folder)
-
+    predictor.reset_state(inference_state)
     # # Add box labels for the first frame
     # ann_obj_id = 1  # give a unique id to each object we interact with (it can be any integers)
 
