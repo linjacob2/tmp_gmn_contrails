@@ -85,7 +85,7 @@ def _preprocess_images(metadata, output_folder):
 
     return query, diff_angle, min_offset, max_offset, orig_w, orig_h, expanded_w, expanded_h
 
-def segment_contrails(flight_dir, sam2_checkpoint="./sam2_checkpoints/sam2_hiera_large.pt", model_cfg="sam2_hiera_l.yaml",
+def segment_contrails(predictor, flight_dir, sam2_checkpoint="./sam2_checkpoints/sam2_hiera_large.pt", model_cfg="sam2_hiera_l.yaml",
                       num_query_frames=1, box_margin=10, binary_threshold=0.0, debug=False):
     # flight_dir: directory name with flight_id as the name e.g. "3C6514_DLH413"
 
@@ -105,7 +105,7 @@ def segment_contrails(flight_dir, sam2_checkpoint="./sam2_checkpoints/sam2_hiera
     tmp_sam2_folder = 'tmp_sam2_folder_output'
     query, diff_angle, min_offset, max_offset, orig_w, orig_h, expanded_w, expanded_h = _preprocess_images(data, tmp_sam2_folder)
 
-    predictor = build_sam2_video_predictor(model_cfg, sam2_checkpoint)
+    # predictor = build_sam2_video_predictor(model_cfg, sam2_checkpoint)
     inference_state = predictor.init_state(video_path=tmp_sam2_folder)
     predictor.reset_state(inference_state)
     # # Add box labels for the first frame
@@ -194,9 +194,6 @@ def segment_contrails(flight_dir, sam2_checkpoint="./sam2_checkpoints/sam2_hiera
 
     # # Remove temporary folder
     # shutil.rmtree(tmp_sam2_folder)
-
-    # For memory leak
-    del predictor
 
 def extract_mask_features(mask, bbox=None, device='cuda'):
     features = dict()
