@@ -9,7 +9,6 @@ import warnings
 from glob import glob
 import json
 import torchvision.transforms as transforms
-from sam2.build_sam import build_sam2_video_predictor
 from sam2.utils.misc import get_connected_components
 from utils.data_loading_utils import load_platepars
 
@@ -85,8 +84,7 @@ def _preprocess_images(metadata, output_folder):
 
     return query, diff_angle, min_offset, max_offset, orig_w, orig_h, expanded_w, expanded_h
 
-def segment_contrails(predictor, flight_dir, sam2_checkpoint="./sam2_checkpoints/sam2_hiera_large.pt", model_cfg="sam2_hiera_l.yaml",
-                      num_query_frames=1, box_margin=10, binary_threshold=0.0, debug=False):
+def segment_contrails(predictor, flight_dir, num_query_frames=1, box_margin=10, binary_threshold=0.0, debug=False):
     # flight_dir: directory name with flight_id as the name e.g. "3C6514_DLH413"
 
     # use bfloat16
@@ -105,95 +103,95 @@ def segment_contrails(predictor, flight_dir, sam2_checkpoint="./sam2_checkpoints
     tmp_sam2_folder = 'tmp_sam2_folder_output'
     query, diff_angle, min_offset, max_offset, orig_w, orig_h, expanded_w, expanded_h = _preprocess_images(data, tmp_sam2_folder)
 
-    # predictor = build_sam2_video_predictor(model_cfg, sam2_checkpoint)
     inference_state = predictor.init_state(video_path=tmp_sam2_folder)
     predictor.reset_state(inference_state)
-    # # Add box labels for the first frame
-    # ann_obj_id = 1  # give a unique id to each object we interact with (it can be any integers)
-
-    # # rotate query points around diff_angle
-    # image_centre = (orig_w // 2, orig_h // 2)
-    # query = query - image_centre
-    # rot_matrix = np.array([[np.cos(np.radians(diff_angle)), -np.sin(np.radians(diff_angle))], [np.sin(np.radians(diff_angle)), np.cos(np.radians(diff_angle))]])
-    # query = np.dot(query, rot_matrix)
-    # query = query + image_centre
-    # query = query - min_offset
-
-    # margin = box_margin
-    # min_x = np.min(query[:, 0]) - margin
-    # max_x = np.max(query[:, 0]) + margin
-    # min_y = np.min(query[:, 1]) - margin
-    # max_y = np.max(query[:, 1]) + margin
     
-    # # Clip all values to fit image frame
-    # min_x = max(0, min_x)
-    # max_x = min(expanded_w, max_x)
-    # min_y = max(0, min_y)
-    # max_y = min(expanded_h, max_y)
+    # Add box labels for the first frame
+    ann_obj_id = 1  # give a unique id to each object we interact with (it can be any integers)
 
-    # box = np.array([min_x, min_y, max_x, max_y], dtype=np.float32)
+    # rotate query points around diff_angle
+    image_centre = (orig_w // 2, orig_h // 2)
+    query = query - image_centre
+    rot_matrix = np.array([[np.cos(np.radians(diff_angle)), -np.sin(np.radians(diff_angle))], [np.sin(np.radians(diff_angle)), np.cos(np.radians(diff_angle))]])
+    query = np.dot(query, rot_matrix)
+    query = query + image_centre
+    query = query - min_offset
 
-    # _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
-    #     inference_state=inference_state,
-    #     frame_idx=0,
-    #     obj_id=ann_obj_id,
-    #     # points=query,
-    #     box=box,
-    #     # labels=labels,
-    # )
+    margin = box_margin
+    min_x = np.min(query[:, 0]) - margin
+    max_x = np.max(query[:, 0]) + margin
+    min_y = np.min(query[:, 1]) - margin
+    max_y = np.max(query[:, 1]) + margin
+    
+    # Clip all values to fit image frame
+    min_x = max(0, min_x)
+    max_x = min(expanded_w, max_x)
+    min_y = max(0, min_y)
+    max_y = min(expanded_h, max_y)
 
-    # first_frame_mask_features = extract_mask_features((out_mask_logits[0, 0, :, :] > binary_threshold).cpu().numpy(), bbox=[int(min_x), int(min_y), int(max_x), int(max_y)])
+    box = np.array([min_x, min_y, max_x, max_y], dtype=np.float32)
 
-    # # Visualise outputs if debug=True
-    # if debug:
-    #     debug_folder = os.path.join(flight_dir, 'debug')
-    #     os.makedirs(debug_folder, exist_ok=True)
+    _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
+        inference_state=inference_state,
+        frame_idx=0,
+        obj_id=ann_obj_id,
+        # points=query,
+        box=box,
+        # labels=labels,
+    )
 
-    #     frame_names = [
-    #         p for p in os.listdir(tmp_sam2_folder)
-    #         if os.path.splitext(p)[-1] in [".jpg", ".jpeg", ".JPG", ".JPEG", ".png"]
-    #     ]
-    #     frame_names = sorted(frame_names)
+    first_frame_mask_features = extract_mask_features((out_mask_logits[0, 0, :, :] > binary_threshold).cpu().numpy(), bbox=[int(min_x), int(min_y), int(max_x), int(max_y)])
 
-    #     labels = torch.ones(query.shape[0], dtype=torch.int64)
+    # Visualise outputs if debug=True
+    if debug:
+        debug_folder = os.path.join(flight_dir, 'debug')
+        os.makedirs(debug_folder, exist_ok=True)
 
-    #     plt.figure(figsize=(12, 8))
-    #     plt.title(f"frame {0}")
-    #     plt.imshow(Image.open(os.path.join(tmp_sam2_folder, frame_names[0])))
-    #     show_points(query, labels, plt.gca())
-    #     show_box(box, plt.gca())
-    #     show_mask((out_mask_logits[0] > binary_threshold).cpu().numpy(), plt.gca(), obj_id=out_obj_ids[0])
+        frame_names = [
+            p for p in os.listdir(tmp_sam2_folder)
+            if os.path.splitext(p)[-1] in [".jpg", ".jpeg", ".JPG", ".JPEG", ".png"]
+        ]
+        frame_names = sorted(frame_names)
 
-    #     plt.savefig(os.path.join(debug_folder, f'{str(0).zfill(5)}.png'))
+        labels = torch.ones(query.shape[0], dtype=torch.int64)
 
-    #     plt.close('all')
+        plt.figure(figsize=(12, 8))
+        plt.title(f"frame {0}")
+        plt.imshow(Image.open(os.path.join(tmp_sam2_folder, frame_names[0])))
+        show_points(query, labels, plt.gca())
+        show_box(box, plt.gca())
+        show_mask((out_mask_logits[0] > binary_threshold).cpu().numpy(), plt.gca(), obj_id=out_obj_ids[0])
 
-    # # Propagate the predictions across the video
-    # # run propagation throughout the video and collect the results in a dict
-    # output_dir = os.path.join(flight_dir, 'sam2_output')
-    # os.makedirs(output_dir, exist_ok=True)
-    # masks = []
+        plt.savefig(os.path.join(debug_folder, f'{str(0).zfill(5)}.png'))
 
-    # for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(inference_state):
-    #     out_mask_logits = transforms.functional.affine(out_mask_logits, angle=diff_angle, translate=(min_offset[0], min_offset[1]), scale=1.0, shear=0.0)
-    #     out_mask_logits = out_mask_logits[:, :, :orig_h, :orig_w]
+        plt.close('all')
 
-    #     # Save as binary image for efficient storage
-    #     out_mask_logits = (out_mask_logits > binary_threshold).squeeze().cpu().numpy()
-    #     masks.append(out_mask_logits)
-    #     mask = Image.fromarray(out_mask_logits)
-    #     mask.save(os.path.join(output_dir, f'{str(out_frame_idx).zfill(5)}.png'), bits=1, optimize=True)
+    # Propagate the predictions across the video
+    # run propagation throughout the video and collect the results in a dict
+    output_dir = os.path.join(flight_dir, 'sam2_output')
+    os.makedirs(output_dir, exist_ok=True)
+    masks = []
 
-    # # Get temporal mask features
-    # temporal_mask_features = extract_temporal_mask_features(masks)
-    # combined_features = {**first_frame_mask_features, **temporal_mask_features}
+    for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(inference_state):
+        out_mask_logits = transforms.functional.affine(out_mask_logits, angle=diff_angle, translate=(min_offset[0], min_offset[1]), scale=1.0, shear=0.0)
+        out_mask_logits = out_mask_logits[:, :, :orig_h, :orig_w]
 
-    # # Save mask features as a json file
-    # with open(os.path.join(output_dir, 'metadata.json'), 'w') as f:
-    #     json.dump({'mask_features': combined_features}, f)
+        # Save as binary image for efficient storage
+        out_mask_logits = (out_mask_logits > binary_threshold).squeeze().cpu().numpy()
+        masks.append(out_mask_logits)
+        mask = Image.fromarray(out_mask_logits)
+        mask.save(os.path.join(output_dir, f'{str(out_frame_idx).zfill(5)}.png'), bits=1, optimize=True)
 
-    # # Remove temporary folder
-    # shutil.rmtree(tmp_sam2_folder)
+    # Get temporal mask features
+    temporal_mask_features = extract_temporal_mask_features(masks)
+    combined_features = {**first_frame_mask_features, **temporal_mask_features}
+
+    # Save mask features as a json file
+    with open(os.path.join(output_dir, 'metadata.json'), 'w') as f:
+        json.dump({'mask_features': combined_features}, f)
+
+    # Remove temporary folder
+    shutil.rmtree(tmp_sam2_folder)
 
 def extract_mask_features(mask, bbox=None, device='cuda'):
     features = dict()
