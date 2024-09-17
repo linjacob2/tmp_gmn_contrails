@@ -80,6 +80,6 @@ for date in dates:
 ## Possible Problems
 
 * The ERA5 data loading with pycontrails has had issues for me before. The solution for this can be found [here](https://github.com/contrailcirrus/pycontrails/issues/206).
-* The segmentation script can have a memory leak issue, causing issues when running the script over large-scale datasets. This has not been resolved yet.
+* ~~The segmentation script can have a memory leak issue, causing issues when running the script over large-scale datasets.~~ This has now been resolved.
 * Running the RMS installation script can fail. I have experienced that sometimes the numpy version is too new and is no longer compatible. Running `pip install numpy==1.26.4` resolved this for me.
 * On the Imperial HPC, most of the installation works. However, installing the CUDA extension for SAM-2 such that the post-processing and all the features from the masks are extracted can be tricky. This might be helpful: https://icl-rcs-user-guide.readthedocs.io/en/latest/hpc/applications/guides/pytorch/
