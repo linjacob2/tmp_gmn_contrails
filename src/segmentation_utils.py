@@ -195,6 +195,9 @@ def segment_contrails(flight_dir, sam2_checkpoint="./sam2_checkpoints/sam2_hiera
     # Remove temporary folder
     shutil.rmtree(tmp_sam2_folder)
 
+    # For memory leak
+    del predictor
+
 def extract_mask_features(mask, bbox=None, device='cuda'):
     features = dict()
     
@@ -309,7 +312,8 @@ def masks_to_geo(base_dir, contrail_flights):
         contrail_height = first_mask_frame['heights_for_advection'][0]
         time = first_mask_frame['time']
 
-        # TODO: Get platepar closest in time
+        # TODO: Retrieve platepar from another day if there are no good calibrations for this day. E.g. cloudy night.
+        # Get platepar closest in time
         platepar_times = [(platepar_name, filenameToDatetime(platepar_name).timestamp()) for platepar_name in platepar_files.keys()]
         platepar_times.sort(key=lambda x: x[1])
         platepar_name = min(platepar_times, key=lambda x: abs(x[1] - time))[0]
