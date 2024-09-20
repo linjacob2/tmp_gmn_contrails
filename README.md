@@ -56,6 +56,9 @@ In some systems, you may need to run `python setup.py build_ext --inplace` in th
 SAM2 also requires a model checkpoint to be downloaded from [here](https://dl.fbaipublicfiles.com/segment_anything_2/072824/sam2_hiera_large.pt). This `sam2_hiera_large.pt` file should be downloaded to `/src/sam2_checkpoints`.
 
 ## Data Download
+### Sample Dataset
+The sample dataset which is detailed in the [documentation](documentation.pdf) can be downloaded [here](https://drive.google.com/file/d/1uzZI4X7OXFCuLA8L0PsVAA7b7BgYSId0/view?usp=sharing).
+
 ### ERA5
 The ERA5 data can be downloaded using the script [here](src/data/era5/ERA5_downloader.ipynb).
 

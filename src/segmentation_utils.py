@@ -40,10 +40,13 @@ def show_box(box, ax):
     ax.add_patch(plt.Rectangle((x0, y0), w, h, edgecolor='green', facecolor=(0, 0, 0, 0), lw=2))
 
 def _preprocess_images(metadata, output_folder):
-    query = []
+    # query = []
 
-    for frame in metadata['frames_with_flight']:
-        query.append((frame['x_coord'], frame['y_coord']))
+    # for frame in metadata['frames_with_flight']:
+        # query.append((frame['x_coord'], frame['y_coord']))
+    x_query = metadata['frames_after_flight'][0]['advected_x_coords']
+    y_query = metadata['frames_after_flight'][0]['advected_y_coords']
+    query = [[x_query[x], y_query[x]] for x in range(len(x_query))]
 
     # x_coords = first_frame['advected_x_coords']
     # y_coords = first_frame['advected_y_coords']
@@ -84,7 +87,7 @@ def _preprocess_images(metadata, output_folder):
 
     return query, diff_angle, min_offset, max_offset, orig_w, orig_h, expanded_w, expanded_h
 
-def segment_contrails(predictor, flight_dir, num_query_frames=1, box_margin=10, binary_threshold=0.0, debug=False):
+def segment_contrails(predictor, flight_dir, num_query_frames=1, box_margin=20, binary_threshold=0.0, debug=False):
     # flight_dir: directory name with flight_id as the name e.g. "3C6514_DLH413"
 
     # use bfloat16
